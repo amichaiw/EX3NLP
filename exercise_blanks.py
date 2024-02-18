@@ -318,8 +318,13 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
-    return
+    # Round predictions to the closest integer (0 or 1)
+    rounded_preds = torch.round(torch.sigmoid(preds))
+    # Calculate the number of correct predictions
+    correct = (rounded_preds == y).float()
+    # Calculate the accuracy
+    accuracy = correct.sum() / len(correct)
+    return accuracy
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -331,14 +336,15 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-    losses, accs, success = [], [], 0
+    losses, accs = [], []
     for x, y in data_iterator:
         optimizer.zero_grad()
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
+        losses.append(loss)
         loss.backward()
         optimizer.step()
-
+        accs.append(binary_accuracy(y_pred, y))
     return np.mean(losses), np.mean(accs)
 
 
@@ -350,8 +356,14 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
-
+    losses, accs = [], []
+    for x, y in data_iterator:
+        y_pred = model.forward(x)
+        loss = criterion(y_pred, y)
+        losses.append(loss)
+        loss.backward()
+        accs.append(binary_accuracy(y_pred, y))
+    return np.mean(losses), np.mean(accs)
 
 def get_predictions_for_data(model, data_iter):
     """
@@ -376,7 +388,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-    return
+
 
 
 def train_log_linear_with_one_hot():
@@ -405,8 +417,8 @@ if __name__ == '__main__':
     data_manager = DataManager()
     data_iterator = data_manager.get_torch_iterator()
 
-    for x, y in data_iterator:
-        print(x, y)
+    # for x, y in data_iterator:
+    #     print(x, y)
 
     train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()

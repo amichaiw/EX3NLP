@@ -295,7 +295,7 @@ class LogLinear(nn.Module):
     def __init__(self, embedding_dim):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.linear1 = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64)
+        self.linear1 = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
 
     def forward(self, x):
         l1 = self.linear1(x)
@@ -350,7 +350,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
             y_pred = model.forward(x)
             loss = criterion(y_pred, y)
             # losses.append(loss)
-            losses = losses + loss
+            losses = losses + (loss * len(y))
             loss.backward()
             optimizer.step()
             accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y) * len(y))

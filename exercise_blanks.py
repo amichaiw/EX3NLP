@@ -1,3 +1,5 @@
+import numpy
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +11,7 @@ import operator
 import data_loader
 import pickle
 import tqdm
+import plotly.express as px
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -22,6 +25,12 @@ W2V_SEQUENCE = "w2v_sequence"
 TRAIN = "train"
 VAL = "val"
 TEST = "test"
+
+# todo to add at (README / PDF) this change in API we did - adding those constant for save the loss/acc
+TRAIN_LOSSES, TRAIN_ACCURACIES = [], []
+VAL_LOSSES, VAL_ACCURACIES = [], []
+TEST_LOSSES, TEST_ACCURACIES = [], []
+SPECIAL_TEST_LOSSES, SPECIAL_TEST_ACCURACIES = [], []
 
 
 # ------------------------------------------ Helper methods and classes --------------------------
@@ -277,7 +286,8 @@ class LSTM(nn.Module):
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
 
-    def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
+    def __init__(self, embedding_dim, hidden_dim, n_layers, dropout, *args, **kwargs):
+        # super().__init__(*args, **kwargs)
         return
 
     def forward(self, text):
@@ -295,18 +305,13 @@ class LogLinear(nn.Module):
     def __init__(self, embedding_dim):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.linear1 = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
+        self.linearLayer = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
 
     def forward(self, x):
-        l1 = self.linear1(x)
-        return l1.squeeze()
+        return self.linearLayer(x).squeeze()
 
     def predict(self, x):
-        # l1 = self.linear1(x, requires_grad=False)
-        # l1_sigmoid = nn.Sigmoid(l1)
-        # return l1_sigmoid
-        return torch.sigmoid(self.forward(x))
-
+        return torch.sigmoid(self.linearLayer(x).squeeze())
 
 
 # ------------------------- training functions -------------
@@ -347,22 +352,20 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     # iterate over the data
     for x, y in data_iterator:
         # for x, y in X, Y:
-            y_pred = model.forward(x)
-            loss = criterion(y_pred, y)
-            # losses.append(loss)
-            losses = losses + (loss * len(y))
-            loss.backward()
-            optimizer.step()
-            accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y) * len(y))
-            # if torch.equal(y_pred, y):
-            #     accuracies += 1
-            samples_counter += len(y)
+        y_pred = model.forward(x)
+        loss = criterion(y_pred, y)
+        losses = losses + loss
+        loss.backward()
+        optimizer.step()
+        # todo validate that this is the right way to calculate accuracy
+        accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y))
+        samples_counter += 1
 
-    # another way to do it - maybe instead of running the loop above we can give the model
-    # all the x's and y's and let it forward over all the batch at once
-    if samples_counter == 0:
-        return 0, 0
-    return losses / samples_counter, accuracies / samples_counter
+    if len(data_iterator) == 0:
+        raise Exception("Data iterator is empty!")
+
+    # todo validate that this is the right way to calculate accuracy
+    return (losses / len(data_iterator)).item(), (accuracies / len(data_iterator)).item()
 
 
 def evaluate(model, data_iterator, criterion):
@@ -373,24 +376,18 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    # losses, accuracies = [], []
-    # for x, y in data_iterator:
-    #     y_pred = model.predict(x)
-    #     loss = criterion(y_pred, y)
-    #     losses.append(loss)
-    #     accuracies.append(binary_accuracy(y_pred, y))
-    # return np.mean(losses), np.mean(accuracies)
+    losses, accuracies = 0, 0
 
-    losses, accuracies, samples_counter = 0, 0, 0
     for x, y in data_iterator:
         y_pred = model.predict(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
-        accuracies = accuracies + (binary_accuracy(y_pred, y) * len(y))
-        samples_counter += len(y)
-    if samples_counter == 0:
-        return 0, 0
-    return losses / samples_counter, accuracies / samples_counter
+        accuracies = accuracies + (binary_accuracy(y_pred, y))
+
+    if len(data_iterator) == 0:
+        raise Exception("Data iterator is empty!")
+
+    return (losses / len(data_iterator)).item(), (accuracies / len(data_iterator)).item()
 
 
 def get_predictions_for_data(model, data_iter):
@@ -403,12 +400,15 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    # predictions = []
-    # for X, Y in data_iter:
-    #     for x, y in X, Y:
-    #         y_pred = model.predict(x)
-    #         predictions.append(y_pred)
-    # return predictions
+    model.requires_grad_(False)
+    predictions = []
+
+    for x_batch in enumerate(data_iter):
+        y_batch_pred = model.predict(x_batch).numpy()
+        predictions.append(y_batch_pred)
+
+    model.requires_grad_(True)
+    return np.concatenate(predictions, axis=0)
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -424,28 +424,32 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
-    total_train_loss, total_train_acc, total_val_loss, total_val_acc = 0, 0, 0, 0
-    train_iter = data_manager.get_torch_iterator(TRAIN)
-    val_iter = data_manager.get_torch_iterator(VAL)
+    criterion.to(get_available_device())
+    train_data_iterator = data_manager.get_torch_iterator(TRAIN)
+    val_data_iterator = data_manager.get_torch_iterator(VAL)
+
+    TRAIN_LOSSES.clear()
+    TRAIN_ACCURACIES.clear()
+    VAL_LOSSES.clear()
+    VAL_ACCURACIES.clear()
+
     for epoch in range(n_epochs):
-        train_loss, train_acc = train_epoch(model, train_iter, optimizer, criterion)
-        val_loss, val_acc = evaluate(model, val_iter, criterion)
-        total_train_loss += train_loss
-        total_train_acc += train_acc
-        total_val_loss += val_loss
-        total_val_acc += val_acc
+        model.requires_grad_(True)
+        train_loss, train_acc = train_epoch(model, train_data_iterator, optimizer, criterion)
+        model.requires_grad_(False)
+        val_loss, val_acc = evaluate(model, val_data_iterator, criterion)
+
+        TRAIN_LOSSES.append(np.around(train_loss, 3))
+        TRAIN_ACCURACIES.append(np.around(train_acc * 100, 2))
+        VAL_LOSSES.append(np.around(val_loss, 3))
+        VAL_ACCURACIES.append(np.around(val_acc * 100, 2))
+
         print(f'Epoch: {epoch + 1:02}')
         print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc * 100:.2f}%')
         print(f'\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc * 100:.2f}%')
         print('-----------------------------')
-    avg_train_loss = total_train_loss / n_epochs
-    avg_train_acc = total_train_acc / n_epochs
-    avg_val_loss = total_val_loss / n_epochs
-    avg_val_acc = total_val_acc / n_epochs
-
-    print(f'Average Train Loss: {avg_train_loss:.3f} | Average Train Acc: {avg_train_acc * 100:.2f}%')
-    print(f'Average Val. Loss: {avg_val_loss:.3f} | Average Val. Acc: {avg_val_acc * 100:.2f}%')
     return
+
 
 def train_log_linear_with_one_hot():
     """
@@ -473,10 +477,18 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
-    # data_manager = DataManager()
-    # data_iter = data_manager.get_torch_iterator()
-    #
-    # train_log_linear_with_one_hot()
+    train_losses = [0.8, 0.65, 0.58, 0.52, 0.47]
+    val_losses = [0.75, 0.62, 0.55, 0.5, 0.45]
+
+    fig = px.line(x=list(range(1, 6)), y=[train_losses, val_losses],
+                  color_discrete_sequence=["blue", "green"],
+                  title="Training & Validation Losses",
+                  markers=True)
+    fig.update_layout(xaxis_title="Epoch number", yaxis_title="Loss")
+
+    fig.show()
+
+    train_log_linear_with_one_hot()
+
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
-    train_log_linear_with_one_hot()

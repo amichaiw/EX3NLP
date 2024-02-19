@@ -337,23 +337,29 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
     # initialize the lists to store the batch losses and accuracies
-    losses, accuracies = [], []
+    losses, accuracies, samples_counter = [], 0, 0
+
     # zeros the gradients of the model
     optimizer.zero_grad()
 
     # iterate over the data
-    for x, y in data_iterator:
-        y_pred = model.forward(x)
-        loss = criterion(y_pred, y)
-        losses.append(loss)
-        loss.backward()
-        optimizer.step()
-        accuracies.append(binary_accuracy(y_pred, y))
+    for X, Y in data_iterator:
+        for x, y in X, Y:
+            y_pred = model.forward(x)
+            loss = criterion(y_pred, y)
+            losses.append(loss)
+            loss.backward()
+            optimizer.step()
+            if y_pred == y:
+                accuracies += 1
+            samples_counter += 1
 
     # another way to do it - maybe instead of running the loop above we can give the model
     # all the x's and y's and let it forward over all the batch at once
+    if samples_counter == 0:
+        return 0, 0
 
-    return np.mean(losses), np.mean(accuracies)
+    return np.mean(losses), accuracies / samples_counter
 
 
 def evaluate(model, data_iterator, criterion):
@@ -364,14 +370,13 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    losses, accs = [], []
+    losses, accuracies = [], []
     for x, y in data_iterator:
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses.append(loss)
-        loss.backward()
-        accs.append(binary_accuracy(y_pred, y))
-    return np.mean(losses), np.mean(accs)
+        accuracies.append(binary_accuracy(y_pred, y))
+    return np.mean(losses), np.mean(accuracies)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -398,7 +403,6 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param weight_decay: parameter for l2 regularization
     """
 
-
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
@@ -423,10 +427,7 @@ def train_lstm_with_w2v():
 
 if __name__ == '__main__':
     data_manager = DataManager()
-    data_iterator = data_manager.get_torch_iterator()
-
-    # for x, y in data_iterator:
-    #     print(x, y)
+    data_iter = data_manager.get_torch_iterator()
 
     train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()

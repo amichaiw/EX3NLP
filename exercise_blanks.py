@@ -336,16 +336,24 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-    losses, accs = [], []
+    # initialize the lists to store the batch losses and accuracies
+    losses, accuracies = [], []
+    # zeros the gradients of the model
+    optimizer.zero_grad()
+
+    # iterate over the data
     for x, y in data_iterator:
-        optimizer.zero_grad()
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses.append(loss)
         loss.backward()
         optimizer.step()
-        accs.append(binary_accuracy(y_pred, y))
-    return np.mean(losses), np.mean(accs)
+        accuracies.append(binary_accuracy(y_pred, y))
+
+    # another way to do it - maybe instead of running the loop above we can give the model
+    # all the x's and y's and let it forward over all the batch at once
+
+    return np.mean(losses), np.mean(accuracies)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -364,6 +372,7 @@ def evaluate(model, data_iterator, criterion):
         loss.backward()
         accs.append(binary_accuracy(y_pred, y))
     return np.mean(losses), np.mean(accs)
+
 
 def get_predictions_for_data(model, data_iter):
     """
@@ -388,7 +397,6 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-
 
 
 def train_log_linear_with_one_hot():

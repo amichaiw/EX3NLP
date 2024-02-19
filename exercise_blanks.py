@@ -347,16 +347,16 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     # iterate over the data
     for x, y in data_iterator:
         # for x, y in X, Y:
-            y_pred = model.predict(x)
+            y_pred = model.forward(x)
             loss = criterion(y_pred, y)
             # losses.append(loss)
             losses = losses + loss
             loss.backward()
             optimizer.step()
-            accuracies = accuracies + binary_accuracy(y_pred, y)
+            accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y) * len(y))
             # if torch.equal(y_pred, y):
             #     accuracies += 1
-            samples_counter += 1
+            samples_counter += len(y)
 
     # another way to do it - maybe instead of running the loop above we can give the model
     # all the x's and y's and let it forward over all the batch at once
@@ -386,8 +386,8 @@ def evaluate(model, data_iterator, criterion):
         y_pred = model.predict(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
-        accuracies = accuracies + binary_accuracy(y_pred, y)
-        samples_counter += 1
+        accuracies = accuracies + (binary_accuracy(y_pred, y) * len(y))
+        samples_counter += len(y)
     if samples_counter == 0:
         return 0, 0
     return losses / samples_counter, accuracies / samples_counter

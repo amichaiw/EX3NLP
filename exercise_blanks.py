@@ -343,30 +343,21 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-    # initialize the lists to store the batch losses and accuracies
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
     model.requires_grad_(True)  # set the model to training mode
-    optimizer.zero_grad()  # zeros the gradients of the model
 
     # iterate over the batches of this epoch and train the model
     for x, y in data_iterator:
+        optimizer.zero_grad()  # zeros the gradients of the model for each batch (or sample)
         y_pred = model.forward(x)
         curr_loss = criterion(y_pred, y)
         curr_loss.backward()
         optimizer.step()
 
-    # Get the average loss and accuracy for this epoch
-    model.requires_grad_(False)  # set the model to training mode
-    losses, accuracy = 0, 0
-    for x, y in data_iterator:
-        y_pred = model.forward(x)
-        loss = criterion(y_pred, y)
-        losses = losses + loss
-        accuracy = accuracy + (binary_accuracy(torch.sigmoid(y_pred), y))
-
-    return (losses / len(data_iterator)).item(), (accuracy / len(data_iterator)).item()
+    # return the evaluation loss and accuracy for this epoch
+    return evaluate(model, data_iterator, criterion)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -377,6 +368,9 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
+    if len(data_iterator) == 0:
+        raise Exception("Data iterator is empty!")
+
     model.requires_grad_(False)
     losses, accuracies = 0, 0
 
@@ -384,10 +378,7 @@ def evaluate(model, data_iterator, criterion):
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
-        accuracies = accuracies + (binary_accuracy(y_pred, y))
-
-    if len(data_iterator) == 0:
-        raise Exception("Data iterator is empty!")
+        accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y))
 
     return (losses / len(data_iterator)).item(), (accuracies / len(data_iterator)).item()
 
@@ -502,10 +493,10 @@ def download_and_save_model():
 
 
 if __name__ == '__main__':
-    download_and_save_model()
-    # train_log_linear_with_one_hot()
-    # plot("Train & Validation Losses", ["Epoch number", "Loss"],
-    #      [TRAIN_LOSSES, VAL_LOSSES], ["Train loss", "Validation loss"])
+    # download_and_save_model()
+    train_log_linear_with_one_hot()
+    plot("Train & Validation Losses", ["Epoch number", "Loss"],
+         [TRAIN_LOSSES, VAL_LOSSES], ["Train loss", "Validation loss"])
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()

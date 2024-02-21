@@ -1,5 +1,4 @@
 import numpy
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,6 +11,7 @@ import data_loader
 import pickle
 import tqdm
 import plotly.express as px
+import plotly.io as pio
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -344,26 +344,29 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
     # initialize the lists to store the batch losses and accuracies
-    losses, accuracies = 0, 0
+    if len(data_iterator) == 0:
+        raise Exception("Data iterator is empty!")
 
-    # zeros the gradients of the model
-    optimizer.zero_grad()
+    model.requires_grad_(True)  # set the model to training mode
+    optimizer.zero_grad()  # zeros the gradients of the model
 
-    # iterate over the data
+    # iterate over the batches of this epoch and train the model
+    for x, y in data_iterator:
+        y_pred = model.forward(x)
+        curr_loss = criterion(y_pred, y)
+        curr_loss.backward()
+        optimizer.step()
+
+    # Get the average loss and accuracy for this epoch
+    model.requires_grad_(False)  # set the model to training mode
+    losses, accuracy = 0, 0
     for x, y in data_iterator:
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
-        loss.backward()
-        optimizer.step()
-        # todo validate that this is the right way to calculate accuracy
-        accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y))
+        accuracy = accuracy + (binary_accuracy(torch.sigmoid(y_pred), y))
 
-    if len(data_iterator) == 0:
-        raise Exception("Data iterator is empty!")
-
-    # todo validate that this is the right way to calculate accuracy
-    return (losses / len(data_iterator)).item(), (accuracies / len(data_iterator)).item()
+    return (losses / len(data_iterator)).item(), (accuracy / len(data_iterator)).item()
 
 
 def evaluate(model, data_iterator, criterion):
@@ -374,10 +377,11 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
+    model.requires_grad_(False)
     losses, accuracies = 0, 0
 
     for x, y in data_iterator:
-        y_pred = model.predict(x)
+        y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
         accuracies = accuracies + (binary_accuracy(y_pred, y))
@@ -421,7 +425,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
-    criterion.to(get_available_device())
+    criterion.to(device=get_available_device())
     train_data_iterator = data_manager.get_torch_iterator(TRAIN)
     val_data_iterator = data_manager.get_torch_iterator(VAL)
 
@@ -431,9 +435,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     VAL_ACCURACIES.clear()
 
     for epoch in range(n_epochs):
-        model.requires_grad_(True)
         train_loss, train_acc = train_epoch(model, train_data_iterator, optimizer, criterion)
-        model.requires_grad_(False)
         val_loss, val_acc = evaluate(model, val_data_iterator, criterion)
 
         TRAIN_LOSSES.append(np.around(train_loss, 3))
@@ -473,20 +475,37 @@ def train_lstm_with_w2v():
     return
 
 
-if __name__ == '__main__':
-    train_losses = [0.8, 0.65, 0.58, 0.52, 0.47]
-    val_losses = [0.75, 0.62, 0.55, 0.5, 0.45]
-
-    # Question 1
-    fig = px.line(x=list(range(1, 6)), y=[train_losses, val_losses],
-                  color_discrete_sequence=["blue", "green"],
-                  title="Training & Validation Losses",
+def plot(graph_title, axis_names, curves, curves_titles):
+    fig = px.line(x=list(range(1, len(curves[0]) + 1)), y=curves,
+                  title=graph_title,
                   markers=True)
-    fig.update_layout(xaxis_title="Epoch number", yaxis_title="Loss")
 
+    fig.update_layout(xaxis_title=axis_names[0], yaxis_title=axis_names[1],
+                      xaxis=dict(tickvals=list(range(1, len(curves[0]) + 1)), tickmode='array'))
+
+    for i, title in enumerate(curves_titles):
+        fig.update_traces(name=title, selector=dict(name=f'wide_variable_{i}'))
+
+    pio.write_image(fig, 'f{graph_title}.png')
+    pio.write_html(fig, 'f{graph_title}.html')
     fig.show()
 
-    train_log_linear_with_one_hot()
+
+def download_and_save_model():
+    import gensim.downloader as api
+
+    # Download the "word2vec-google-news-300" model
+    model = api.load("word2vec-google-news-300")
+
+    # Save the model to your local machine
+    model.save("word2vec-google-news-300.model")
+
+
+if __name__ == '__main__':
+    download_and_save_model()
+    # train_log_linear_with_one_hot()
+    # plot("Train & Validation Losses", ["Epoch number", "Loss"],
+    #      [TRAIN_LOSSES, VAL_LOSSES], ["Train loss", "Validation loss"])
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()

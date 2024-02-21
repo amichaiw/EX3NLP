@@ -344,14 +344,13 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
     # initialize the lists to store the batch losses and accuracies
-    losses, accuracies, samples_counter = 0, 0, 0
+    losses, accuracies = 0, 0
 
     # zeros the gradients of the model
     optimizer.zero_grad()
 
     # iterate over the data
     for x, y in data_iterator:
-        # for x, y in X, Y:
         y_pred = model.forward(x)
         loss = criterion(y_pred, y)
         losses = losses + loss
@@ -359,7 +358,6 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         optimizer.step()
         # todo validate that this is the right way to calculate accuracy
         accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y))
-        samples_counter += 1
 
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
@@ -392,7 +390,6 @@ def evaluate(model, data_iterator, criterion):
 
 def get_predictions_for_data(model, data_iter):
     """
-
     This function should iterate over all batches of examples from data_iter and return all of the models
     predictions as a numpy ndarray or torch tensor (or list if you prefer). the prediction should be in the
     same order of the examples returned by data_iter.
@@ -480,6 +477,7 @@ if __name__ == '__main__':
     train_losses = [0.8, 0.65, 0.58, 0.52, 0.47]
     val_losses = [0.75, 0.62, 0.55, 0.5, 0.45]
 
+    # Question 1
     fig = px.line(x=list(range(1, 6)), y=[train_losses, val_losses],
                   color_discrete_sequence=["blue", "green"],
                   title="Training & Validation Losses",

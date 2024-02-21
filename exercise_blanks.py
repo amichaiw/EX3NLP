@@ -82,6 +82,20 @@ def load(model, path, optimizer):
     return model, optimizer, epoch
 
 
+def plot(graph_title, axis_names, curves, curves_titles):
+    fig = px.line(x=list(range(1, len(curves[0]) + 1)), y=curves,
+                  title=graph_title, )
+
+    fig.update_layout(xaxis_title=axis_names[0], yaxis_title=axis_names[1],
+                      xaxis=dict(tickvals=list(range(1, len(curves[0]) + 1)), tickmode='array'))
+
+    for i, title in enumerate(curves_titles):
+        fig.update_traces(name=title, selector=dict(name=f'wide_variable_{i}'))
+
+    pio.write_image(fig, f'{graph_title}.png')
+    fig.show()
+
+
 # ------------------------------------------ Data utilities ----------------------------------------
 
 def load_word2vec():
@@ -172,6 +186,16 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param seq_len: the fixed length for which the sentence will be mapped to.
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
+    """
+    return
+
+
+def get_special_test_data(test):
+    """
+    this method gets a test iterator of sentences, and returns a list of sentences which are
+    considered special test data.
+    :param test: a list of sentences
+    :return: a list of sentences which are considered special test data
     """
     return
 
@@ -346,7 +370,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
-    model.requires_grad_(True)  # set the model to training mode
+    # model.requires_grad_(True)  # set the model to training mode
 
     # iterate over the batches of this epoch and train the model
     for x, y in data_iterator:
@@ -371,7 +395,7 @@ def evaluate(model, data_iterator, criterion):
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
-    model.requires_grad_(False)
+    # model.requires_grad_(False)
     losses, accuracies = 0, 0
 
     for x, y in data_iterator:
@@ -392,14 +416,13 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    model.requires_grad_(False)
+    # model.requires_grad_(False)
     predictions = []
 
     for x_batch in enumerate(data_iter):
         y_batch_pred = model.predict(x_batch).numpy()
         predictions.append(y_batch_pred)
 
-    model.requires_grad_(True)
     return np.concatenate(predictions, axis=0)
 
 
@@ -448,6 +471,21 @@ def train_log_linear_with_one_hot():
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[0])
     train_model(model, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
+
+    plot("LogLinear Train & Validation Losses", ["Epoch number", "Loss"],
+         [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
+
+    plot("LogLinear Train & Validation Accuracies", ["Epoch number", "Accuracy"],
+         [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
+
+    # Need to add the test and special test evaluation
+    get_predictions_for_data(model, data_manager.get_torch_iterator(TEST))
+
+    # Todo: add the special test evaluation
+
+    # Saving model
+    save_model(model, "log_linear_one_hot.model", 20,
+               optim.Adam(model.parameters(), lr=0.01, weight_decay=0.001))
     return
 
 
@@ -466,22 +504,6 @@ def train_lstm_with_w2v():
     return
 
 
-def plot(graph_title, axis_names, curves, curves_titles):
-    fig = px.line(x=list(range(1, len(curves[0]) + 1)), y=curves,
-                  title=graph_title,
-                  markers=True)
-
-    fig.update_layout(xaxis_title=axis_names[0], yaxis_title=axis_names[1],
-                      xaxis=dict(tickvals=list(range(1, len(curves[0]) + 1)), tickmode='array'))
-
-    for i, title in enumerate(curves_titles):
-        fig.update_traces(name=title, selector=dict(name=f'wide_variable_{i}'))
-
-    pio.write_image(fig, 'f{graph_title}.png')
-    pio.write_html(fig, 'f{graph_title}.html')
-    fig.show()
-
-
 def download_and_save_model():
     import gensim.downloader as api
 
@@ -494,9 +516,14 @@ def download_and_save_model():
 
 if __name__ == '__main__':
     # download_and_save_model()
-    train_log_linear_with_one_hot()
-    plot("Train & Validation Losses", ["Epoch number", "Loss"],
-         [TRAIN_LOSSES, VAL_LOSSES], ["Train loss", "Validation loss"])
+
+    # train_log_linear_with_one_hot()
+    data_manager = DataManager(batch_size=64)
+    test = data_manager.get_torch_iterator(TEST)
+
+    for x, y in test:
+        print(x.shape)
+        print(x[0][0])
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()

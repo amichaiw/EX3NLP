@@ -350,7 +350,7 @@ def binary_accuracy(preds, y):
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
     # Round predictions to the closest integer (0 or 1)
-    rounded_preds = torch.round(preds)
+    rounded_preds = torch.round(nn.Sigmoid()(preds))
     # Calculate the number of correct predictions
     correct = (rounded_preds == y).float()
     # Calculate the accuracy
@@ -370,16 +370,20 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
-    # model.requires_grad_(True)
+    model.requires_grad_(True)
+    acc, loss, sample_counters = 0, 0, 0
 
     for x, y in data_iterator:
         optimizer.zero_grad()
         y_pred = model(x)
-        loss = criterion(y_pred, y)
-        loss.backward()
+        running_loss = criterion(y_pred, y)
+        loss += running_loss.item()
+        acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
+        running_loss.backward()
         optimizer.step()
+        sample_counters += len(y)
 
-    return evaluate(model, data_iterator, criterion)
+    return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -393,20 +397,17 @@ def evaluate(model, data_iterator, criterion):
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
-    # model.requires_grad_(False)
-
-    samples_counter, output, labels = 0, torch.Tensor(), torch.Tensor()
+    model.requires_grad_(False)
+    acc, loss, sample_counters = 0, 0, 0
 
     for x, y in data_iterator:
-        y_pred = model.forward(x)
-        output = torch.cat((output, y_pred))
-        labels = torch.cat((labels, y))
-        samples_counter += len(y)
+        y_pred = model(x)
+        running_loss = criterion(y_pred, y)
+        loss += running_loss.item()
+        acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
+        sample_counters += len(y)
 
-    loss = criterion(output, labels).item()
-    acc = 100 * (((torch.round(nn.Sigmoid()(output)) == labels).sum()) / samples_counter).item()
-
-    return np.round(loss, 5), np.round(acc, 5)
+    return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -440,7 +441,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     """
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(reduction='sum')
     criterion.to(device=get_available_device())
     train_data_iterator = data_manager.get_torch_iterator(TRAIN)
     val_data_iterator = data_manager.get_torch_iterator(VAL)

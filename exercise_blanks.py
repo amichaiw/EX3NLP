@@ -26,11 +26,9 @@ TRAIN = "train"
 VAL = "val"
 TEST = "test"
 
-# todo to add at (README / PDF) this change in API we did - adding those constant for save the loss/acc
+# todo: we made this lines so add to README§
 TRAIN_LOSSES, TRAIN_ACCURACIES = [], []
 VAL_LOSSES, VAL_ACCURACIES = [], []
-TEST_LOSSES, TEST_ACCURACIES = [], []
-SPECIAL_TEST_LOSSES, SPECIAL_TEST_ACCURACIES = [], []
 
 
 # ------------------------------------------ Helper methods and classes --------------------------
@@ -82,6 +80,7 @@ def load(model, path, optimizer):
     return model, optimizer, epoch
 
 
+# todo: we made this function add to README
 def plot(graph_title, axis_names, curves, curves_titles):
     fig = px.line(x=list(range(1, len(curves[0]) + 1)), y=curves,
                   title=graph_title, )
@@ -161,9 +160,10 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    one_hot = np.zeros(len(word_to_ind))
-    for word_token in sent.text:
-        one_hot = one_hot + get_one_hot(len(word_to_ind), word_to_ind[word_token])
+    size = len(word_to_ind)
+    one_hot = np.zeros(size)
+    for word in sent.text:
+        one_hot += get_one_hot(size, word_to_ind[word])
     return one_hot / len(sent.text)
 
 
@@ -190,6 +190,7 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     return
 
 
+# todo: we made this function add to README
 def get_special_test_data(test):
     """
     this method gets a test iterator of sentences, and returns a list of sentences which are
@@ -327,15 +328,14 @@ class LogLinear(nn.Module):
     """
 
     def __init__(self, embedding_dim):
-        super().__init__()
-        self.embedding_dim = embedding_dim
+        super(LogLinear, self).__init__()  # todo: its was before super().__init__()
         self.linearLayer = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
 
     def forward(self, x):
         return self.linearLayer(x).squeeze()
 
     def predict(self, x):
-        return torch.sigmoid(self.linearLayer(x).squeeze())
+        return torch.round(nn.Sigmoid()(self.linearLayer(x).squeeze()))
 
 
 # ------------------------- training functions -------------
@@ -370,17 +370,15 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     if len(data_iterator) == 0:
         raise Exception("Data iterator is empty!")
 
-    # model.requires_grad_(True)  # set the model to training mode
+    # model.requires_grad_(True)
 
-    # iterate over the batches of this epoch and train the model
     for x, y in data_iterator:
-        optimizer.zero_grad()  # zeros the gradients of the model for each batch (or sample)
-        y_pred = model.forward(x)
-        curr_loss = criterion(y_pred, y)
-        curr_loss.backward()
+        optimizer.zero_grad()
+        y_pred = model(x)
+        loss = criterion(y_pred, y)
+        loss.backward()
         optimizer.step()
 
-    # return the evaluation loss and accuracy for this epoch
     return evaluate(model, data_iterator, criterion)
 
 
@@ -396,15 +394,19 @@ def evaluate(model, data_iterator, criterion):
         raise Exception("Data iterator is empty!")
 
     # model.requires_grad_(False)
-    losses, accuracies = 0, 0
+
+    samples_counter, output, labels = 0, torch.Tensor(), torch.Tensor()
 
     for x, y in data_iterator:
         y_pred = model.forward(x)
-        loss = criterion(y_pred, y)
-        losses = losses + loss
-        accuracies = accuracies + (binary_accuracy(torch.sigmoid(y_pred), y))
+        output = torch.cat((output, y_pred))
+        labels = torch.cat((labels, y))
+        samples_counter += len(y)
 
-    return (losses / len(data_iterator)).item(), (accuracies / len(data_iterator)).item()
+    loss = criterion(output, labels).item()
+    acc = 100 * (((torch.round(nn.Sigmoid()(output)) == labels).sum()) / samples_counter).item()
+
+    return np.round(loss, 5), np.round(acc, 5)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -416,14 +418,14 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    # model.requires_grad_(False)
-    predictions = []
+    model.requires_grad_(False)
+    predictions = torch.Tensor()
 
-    for x_batch in enumerate(data_iter):
-        y_batch_pred = model.predict(x_batch).numpy()
-        predictions.append(y_batch_pred)
+    for x in enumerate(data_iter):
+        y_pred = model.predict(x)
+        torch.cat((predictions, y_pred))
 
-    return np.concatenate(predictions, axis=0)
+    return predictions
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -452,14 +454,14 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         train_loss, train_acc = train_epoch(model, train_data_iterator, optimizer, criterion)
         val_loss, val_acc = evaluate(model, val_data_iterator, criterion)
 
-        TRAIN_LOSSES.append(np.around(train_loss, 3))
-        TRAIN_ACCURACIES.append(np.around(train_acc * 100, 2))
-        VAL_LOSSES.append(np.around(val_loss, 3))
-        VAL_ACCURACIES.append(np.around(val_acc * 100, 2))
+        TRAIN_LOSSES.append(train_loss)
+        TRAIN_ACCURACIES.append(train_acc)
+        VAL_LOSSES.append(val_loss)
+        VAL_ACCURACIES.append(val_acc)
 
         print(f'Epoch: {epoch + 1:02}')
-        print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc * 100:.2f}%')
-        print(f'\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc * 100:.2f}%')
+        print(f'\tTrain Loss: {train_loss} | Train Acc: {train_acc}%')
+        print(f'\t Val. Loss: {val_loss} |  Val. Acc: {val_acc}%')
         print('-----------------------------')
     return
 
@@ -468,9 +470,9 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    data_manager = DataManager(batch_size=64)
-    model = LogLinear(data_manager.get_input_shape()[0])
-    train_model(model, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
+    data_manager = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64, use_sub_phrases=True)
+    log_linear = LogLinear(data_manager.get_input_shape()[0])
+    train_model(log_linear, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
 
     plot("LogLinear Train & Validation Losses", ["Epoch number", "Loss"],
          [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
@@ -478,14 +480,14 @@ def train_log_linear_with_one_hot():
     plot("LogLinear Train & Validation Accuracies", ["Epoch number", "Accuracy"],
          [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
 
-    # Need to add the test and special test evaluation
-    get_predictions_for_data(model, data_manager.get_torch_iterator(TEST))
+    # Need to add the test and special test evaluation - also need to take only samples from the test sets
+    get_predictions_for_data(log_linear, data_manager.get_torch_iterator(TEST))
 
     # Todo: add the special test evaluation
 
     # Saving model
-    save_model(model, "log_linear_one_hot.model", 20,
-               optim.Adam(model.parameters(), lr=0.01, weight_decay=0.001))
+    save_model(log_linear, "log_linear_one_hot.model", 20,
+               optim.Adam(log_linear.parameters(), lr=0.01, weight_decay=0.001))
     return
 
 
@@ -504,26 +506,15 @@ def train_lstm_with_w2v():
     return
 
 
-def download_and_save_model():
-    import gensim.downloader as api
-
-    # Download the "word2vec-google-news-300" model
-    model = api.load("word2vec-google-news-300")
-
-    # Save the model to your local machine
-    model.save("word2vec-google-news-300.model")
-
-
 if __name__ == '__main__':
-    # download_and_save_model()
+    train_log_linear_with_one_hot()
 
-    # train_log_linear_with_one_hot()
-    data_manager = DataManager(batch_size=64)
-    test = data_manager.get_torch_iterator(TEST)
+    # data_manager = DataManager(batch_size=64)
+    # data_manager.get_input_shape()[0]
+    # test = data_manager.get_torch_iterator(TEST)
 
-    for x, y in test:
-        print(x.shape)
-        print(x[0][0])
-
-    # train_log_linear_with_w2v()
-    # train_lstm_with_w2v()
+    # for x, y in test:
+    #     print(x.shape)
+    #     print(x[0][0])
+# train_log_linear_with_w2v()
+# train_lstm_with_w2v()

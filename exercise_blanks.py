@@ -96,6 +96,18 @@ def plot(graph_title, axis_names, curves, curves_titles):
     fig.show()
 
 
+def append_to_file(filename, text):
+    """
+    Appends the given text to the bottom of the specified file.
+
+    Args:
+        filename: The name of the text file.
+        text: The string to be appended.
+    """
+    with open(filename, "a") as file:
+        file.write(text + "\n")
+
+
 # ------------------------------------------ Data utilities ----------------------------------------
 
 def load_word2vec():
@@ -353,7 +365,7 @@ class LogLinear(nn.Module):
     """
 
     def __init__(self, embedding_dim):
-        super(LogLinear, self).__init__()  # todo: its was before super().__init__()
+        super(LogLinear, self).__init__()
         self.linearLayer = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
 
     def forward(self, x):
@@ -447,7 +459,7 @@ def get_predictions_for_data(model, data_iter):
     model.requires_grad_(False)
     predictions = torch.Tensor()
 
-    for x, _ in data_iter:
+    for x in data_iter:
         y_pred = model.predict(x)
         torch.cat((predictions, y_pred))
 
@@ -506,12 +518,14 @@ def train_log_linear_with_one_hot():
     plot("LogLinear Train & Validation Accuracies", ["Epoch number", "Accuracy"],
          [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
 
-    # Need to add the test and special test evaluation - also need to take only samples from the test sets
-    get_predictions_for_data(log_linear, data_manager.get_torch_iterator(TEST))
+    test_loss, test_acc = evaluate(log_linear, data_manager.get_torch_iterator(TEST),
+                                   nn.BCEWithLogitsLoss(reduction='sum'))
+
+    print("LogLinear (Hot-One) Test Evaluation:")
+    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
 
     # Todo: add the special test evaluation
 
-    # Saving model
     save_model(log_linear, "log_linear_one_hot.model", 20,
                optim.Adam(log_linear.parameters(), lr=0.01, weight_decay=0.001))
     return
@@ -534,6 +548,7 @@ def train_lstm_with_w2v():
     """
     return
 
+
 def download_and_save_model():
     import gensim.downloader as api
 
@@ -545,16 +560,6 @@ def download_and_save_model():
 
 
 if __name__ == '__main__':
-    # download_and_save_model()
-
-    # data_manager = DataManager(batch_size=64)
-    # data_manager.get_input_shape()[0]
-    # test = data_manager.get_torch_iterator(TEST)
-
-    # for x, y in test:
-    #     print(x.shape)
-    #     print(x[0][0])
-
     print("train_log_linear_with_one_hot()")
     train_log_linear_with_one_hot()
     print("\n\n***********************\n\n")

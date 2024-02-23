@@ -96,6 +96,7 @@ def plot(graph_title, axis_names, curves, curves_titles):
     fig.show()
 
 
+# todo add this function to the README
 def append_to_file(filename, text):
     """
     Appends the given text to the bottom of the specified file.
@@ -512,23 +513,7 @@ def train_log_linear_with_one_hot():
     log_linear = LogLinear(data_manager.get_input_shape()[0])
     train_model(log_linear, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    plot("LogLinear Train & Validation Losses", ["Epoch number", "Loss"],
-         [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
-
-    plot("LogLinear Train & Validation Accuracies", ["Epoch number", "Accuracy"],
-         [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
-
-    test_loss, test_acc = evaluate(log_linear, data_manager.get_torch_iterator(TEST),
-                                   nn.BCEWithLogitsLoss(reduction='sum'))
-
-    print("LogLinear (Hot-One) Test Evaluation:")
-    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
-
-    # Todo: add the special test evaluation
-
-    save_model(log_linear, "log_linear_one_hot.model", 20,
-               optim.Adam(log_linear.parameters(), lr=0.01, weight_decay=0.001))
-    return
+    return log_linear, data_manager  # todo add this api changes to the readme
 
 
 def train_log_linear_with_w2v():
@@ -538,8 +523,9 @@ def train_log_linear_with_w2v():
     """
     data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
     # model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    model = LogLinear(data_manager.get_input_shape()[0])
-    train_model(model, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
+    log_linear_w2v = LogLinear(data_manager.get_input_shape()[0])
+    train_model(log_linear_w2v, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
+    return log_linear_w2v, data_manager  # todo add this line change to readme
 
 
 def train_lstm_with_w2v():
@@ -549,23 +535,31 @@ def train_lstm_with_w2v():
     return
 
 
-def download_and_save_model():
-    import gensim.downloader as api
+# TODO add this function to the README
+def answer(train_model_function, title, lr=0.01, weight_decay=0.001, n_epochs=20):
+    print("start training", title)
+    model, data = train_model_function()
+    plot(f"{title} Train & Validation Losses", ["Epoch number", "Loss"],
+         [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
+    plot(f"{title} Train & Validation Accuracies", ["Epoch number", "Accuracy"],
+         [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
+    test_loss, test_acc = evaluate(model, data.get_torch_iterator(TEST),
+                                   nn.BCEWithLogitsLoss(reduction='sum'))
+    print(f"{title} Test Evaluation:")
+    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
 
-    # Download the "word2vec-google-news-300" model
-    model = api.load("word2vec-google-news-300")
+    print(f"{title} Polarity Evaluation:")
+    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
 
-    # Save the model to your local machine
-    model.save("word2vec-google-news-300.model")
+    print(f"{title} Rare Words Evaluation:")
+    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
+
+    save_model(model, f"{title}_model", n_epochs,
+               optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay))
+    print(f"{title} model saved")
+    print("**********************\n")
 
 
 if __name__ == '__main__':
-    print("train_log_linear_with_one_hot()")
-    train_log_linear_with_one_hot()
-    print("\n\n***********************\n\n")
-    print("train_log_linear_with_w2v()")
-    train_log_linear_with_w2v()
-    print("\n\n***********************\n\n")
-    # print("train_lstm_with_w2v()")
-    # train_lstm_with_w2v()
-    # print("\n\n***********************\n\n")
+    answer(train_log_linear_with_one_hot, "LogLinear one hot")
+    answer(train_log_linear_with_w2v, "LogLinear w2v")

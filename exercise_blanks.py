@@ -12,6 +12,7 @@ import pickle
 import tqdm
 import plotly.express as px
 import plotly.io as pio
+import kaleido
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -137,7 +138,29 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    # Initialize an empty numpy array with zeros
+    avg_vector = np.zeros(embedding_dim)
+
+    # Count the number of words in the sentence
+    count = 0
+    leaves = sent.get_leaves()
+
+    # Iterate over each word in the sentence
+    for word in sent.text:
+        # Check if the word is in the word_to_vec dictionary
+        if word in word_to_vec:
+            # Add the word's vector to avg_vector
+            # vec = word_to_vec[word.text[0]]
+            avg_vector += word_to_vec[word]
+            # vec2 = avg_vector
+            # Increment the count
+            count += 1
+    # If count is not 0, divide avg_vector by count to get the average
+    if count != 0:
+        avg_vector /= count
+        # avg_vector /= len(sent.text)
+
+    return avg_vector
 
 
 def get_one_hot(size, ind):
@@ -163,7 +186,9 @@ def average_one_hots(sent, word_to_ind):
     size = len(word_to_ind)
     one_hot = np.zeros(size)
     for word in sent.text:
-        one_hot += get_one_hot(size, word_to_ind[word])
+        new_one_hot = np.zeros(size)
+        new_one_hot[word_to_ind[word]] = 1
+        one_hot += new_one_hot
     return one_hot / len(sent.text)
 
 
@@ -422,7 +447,7 @@ def get_predictions_for_data(model, data_iter):
     model.requires_grad_(False)
     predictions = torch.Tensor()
 
-    for x in enumerate(data_iter):
+    for x, _ in data_iter:
         y_pred = model.predict(x)
         torch.cat((predictions, y_pred))
 
@@ -497,7 +522,10 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
+    # model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
+    model = LogLinear(data_manager.get_input_shape()[0])
+    train_model(model, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
 
 
 def train_lstm_with_w2v():
@@ -506,9 +534,18 @@ def train_lstm_with_w2v():
     """
     return
 
+def download_and_save_model():
+    import gensim.downloader as api
+
+    # Download the "word2vec-google-news-300" model
+    model = api.load("word2vec-google-news-300")
+
+    # Save the model to your local machine
+    model.save("word2vec-google-news-300.model")
+
 
 if __name__ == '__main__':
-    train_log_linear_with_one_hot()
+    # download_and_save_model()
 
     # data_manager = DataManager(batch_size=64)
     # data_manager.get_input_shape()[0]
@@ -517,5 +554,13 @@ if __name__ == '__main__':
     # for x, y in test:
     #     print(x.shape)
     #     print(x[0][0])
-# train_log_linear_with_w2v()
-# train_lstm_with_w2v()
+
+    print("train_log_linear_with_one_hot()")
+    train_log_linear_with_one_hot()
+    print("\n\n***********************\n\n")
+    print("train_log_linear_with_w2v()")
+    train_log_linear_with_w2v()
+    print("\n\n***********************\n\n")
+    # print("train_lstm_with_w2v()")
+    # train_lstm_with_w2v()
+    # print("\n\n***********************\n\n")

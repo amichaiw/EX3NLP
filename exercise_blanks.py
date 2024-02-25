@@ -29,6 +29,8 @@ W2V_SEQUENCE = "w2v_sequence"
 TRAIN = "train"
 VAL = "val"
 TEST = "test"
+RARE = "rare"
+NEGATED_POLARITY = "negated_polarity"
 
 # todo: we made this lines so add to README§
 TRAIN_LOSSES, TRAIN_ACCURACIES = [], []
@@ -297,6 +299,12 @@ class DataManager():
 
         self.sentences[VAL] = self.sentiment_dataset.get_validation_set()
         self.sentences[TEST] = self.sentiment_dataset.get_test_set()
+        self.sentences[RARE] = get_rare_words_sentences(self.sentences[TEST], self.sentiment_dataset)
+        self.sentences[NEGATED_POLARITY] = get_negated_polarity_sentences(self.sentences[TEST])
+        # val_sents = self.sentences[VAL]
+        # test_sents = self.sentences[TEST]
+        # rare_sents = self.sentences[RARE]
+        # negated_sents = self.sentences[NEGATED_POLARITY]
 
         # map data splits to sentence input preperation functions
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
@@ -524,7 +532,6 @@ def train_log_linear_with_one_hot():
     data_manager = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64, use_sub_phrases=True)
     log_linear = LogLinear(data_manager.get_input_shape()[0])
     train_model(log_linear, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
-
     return log_linear, data_manager  # todo add this api changes to the readme
 
 
@@ -550,10 +557,71 @@ def train_lstm_with_w2v():
     return lstm_w2v, data_manager  # todo add this line change to readme
 
 
+def download_and_save_model():
+    import gensim.downloader as api
+
+    # Download the "word2vec-google-news-300" model
+    model = api.load("word2vec-google-news-300")
+
+    # Save the model to your local machine
+    model.save("word2vec-google-news-300.model")
+
+
+# def get_rare_words_iterator(data_manager):
+#     """
+#     :param data_manager: the DataManager object
+#     :return: a torch iterator for the rare words sentences
+#     """
+#     rare_words_indices = data_loader.get_rare_words_examples(data_manager.sentences[TEST], data_manager)
+#     rare_words_sentences = [data_manager.sentences[TEST][i] for i in rare_words_indices]
+#     rare_words_dataset = OnlineDataset(rare_words_sentences, data_manager.sent_func, data_manager.sent_func_kwargs)
+#     return DataLoader(rare_words_dataset, batch_size=64, shuffle=False)
+#
+#
+# def get_negated_polarity_iterator(data_manager):
+#     """
+#     :param data_manager: the DataManager object
+#     :return: a torch iterator for the negated polarity sentences
+#     """
+#     negated_polarity_indices = data_loader.get_negated_polarity_examples(data_manager.sentences[TEST])
+#     negated_polarity_sentences = [data_manager.sentences[TEST][i] for i in negated_polarity_indices]
+#     negated_polarity_dataset = OnlineDataset(negated_polarity_sentences, data_manager.sent_func,
+#                                              data_manager.sent_func_kwargs)
+#     return DataLoader(negated_polarity_dataset, batch_size=64, shuffle=False)
+
+
+def get_rare_words_sentences(sentences, dataset):
+    """
+    :param sentences: list of sentences from the test set
+    :param dataset: the SentimentTreeBank object
+    :return: set of all the sentences indices which are considered as rare words sentences
+    """
+    rare_words_indices = data_loader.get_rare_words_examples(sentences, dataset)
+    rare_words_sentences = []
+    for i in rare_words_indices:
+        rare_words_sentences.append(sentences[i])
+    return rare_words_sentences
+
+
+def get_negated_polarity_sentences(sentences):
+    """
+    :param sentences: list of sentences from the test set
+    :return: set of all the sentences indices which are considered as negated polarity sentences
+    """
+    negated_polarity_indices = data_loader.get_negated_polarity_examples(sentences)
+    negated_polarity_sentences = []
+    for i in negated_polarity_indices:
+        negated_polarity_sentences.append(sentences[i])
+    return negated_polarity_sentences
+
+
 # TODO add this function to the README
 def answer(train_model_function, title, lr, weight_decay, n_epochs):
     print("start training", title)
     model, data = train_model_function()
+    # rare_words_indices = data_loader.get_rare_words_examples(data.sentences[TEST], data)
+    # negated_polarity_indices = data_loader.get_negated_polarity_examples(data.sentences[TEST])
+
     plot(f"{title} Train & Validation Losses", ["Epoch number", "Loss"],
          [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
     plot(f"{title} Train & Validation Accuracies", ["Epoch number", "Accuracy"],
@@ -562,12 +630,14 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
                                    nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Test Evaluation:")
     print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
-
+    negated_polarity_test_loss, negated_polarity_test_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
+                                                                     nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Polarity Evaluation:")
-    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
-
+    print(f'Test Loss: {negated_polarity_test_loss} | Test Acc: {negated_polarity_test_acc}%')
+    rare_test_loss, rare_test_acc = evaluate(model, data.get_torch_iterator(RARE),
+                                            nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Rare Words Evaluation:")
-    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
+    print(f'Test Loss: {rare_test_loss} | Test Acc: {rare_test_acc}%')
 
     save_model(model, f"{title}_model", n_epochs,
                optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay))
@@ -576,6 +646,7 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
 
 
 if __name__ == '__main__':
-    answer(train_log_linear_with_one_hot, "LogLinear one hot", lr=0.01, weight_decay=0.001, n_epochs=20)
-    answer(train_log_linear_with_w2v, "LogLinear w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
+    # download_and_save_model()
+    # answer(train_log_linear_with_one_hot, "LogLinear one hot", lr=0.01, weight_decay=0.001, n_epochs=20)
+    # answer(train_log_linear_with_w2v, "LogLinear w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
     answer(train_lstm_with_w2v, "LSTM w2v", lr=0.001, weight_decay=0.0001, n_epochs=4)

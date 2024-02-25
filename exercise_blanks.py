@@ -557,16 +557,6 @@ def train_lstm_with_w2v():
     return lstm_w2v, data_manager  # todo add this line change to readme
 
 
-def download_and_save_model():
-    import gensim.downloader as api
-
-    # Download the "word2vec-google-news-300" model
-    model = api.load("word2vec-google-news-300")
-
-    # Save the model to your local machine
-    model.save("word2vec-google-news-300.model")
-
-
 # def get_rare_words_iterator(data_manager):
 #     """
 #     :param data_manager: the DataManager object
@@ -590,6 +580,7 @@ def download_and_save_model():
 #     return DataLoader(negated_polarity_dataset, batch_size=64, shuffle=False)
 
 
+# todo add this function to the README
 def get_rare_words_sentences(sentences, dataset):
     """
     :param sentences: list of sentences from the test set
@@ -603,6 +594,7 @@ def get_rare_words_sentences(sentences, dataset):
     return rare_words_sentences
 
 
+# todo add this function to the README
 def get_negated_polarity_sentences(sentences):
     """
     :param sentences: list of sentences from the test set
@@ -630,14 +622,16 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
                                    nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Test Evaluation:")
     print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
+
     negated_polarity_test_loss, negated_polarity_test_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
                                                                      nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Polarity Evaluation:")
-    print(f'Test Loss: {negated_polarity_test_loss} | Test Acc: {negated_polarity_test_acc}%')
+    print(f'Polarity Loss: {negated_polarity_test_loss} | Polarity Acc: {negated_polarity_test_acc}%')
+
     rare_test_loss, rare_test_acc = evaluate(model, data.get_torch_iterator(RARE),
-                                            nn.BCEWithLogitsLoss(reduction='sum'))
+                                             nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Rare Words Evaluation:")
-    print(f'Test Loss: {rare_test_loss} | Test Acc: {rare_test_acc}%')
+    print(f'Rare Loss: {rare_test_loss} | Rare Acc: {rare_test_acc}%')
 
     save_model(model, f"{title}_model", n_epochs,
                optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay))

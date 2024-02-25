@@ -18,6 +18,9 @@ import kaleido
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
+HIDDEN_LSTM_DIM = 100  # todo add this line to the README
+DROP_OUT = 0.5
+LSTM_LAYERS = 1
 
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
@@ -215,23 +218,17 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
+    # Initialize an empty numpy ndarray with zeros size of 52x300 = (seq_len, embedding_dim)
     seq_vector = np.zeros((seq_len, embedding_dim))
 
-    # Count the number of words in the sentence
-    count = 0
-
     # Iterate over each word in the sentence
-    for word in sent.text:
-        # Check if the word is in the word_to_vec dictionary
-        if word in word_to_vec:
-            # Add the word's vector to avg_vector
-            # vec = word_to_vec[word.text[0]]
-            seq_vector += word_to_vec[word]
-            count += 1
-    # If count is not 0, divide avg_vector by count to get the average
-    if count != 0:
-        seq_vector /= count
+    for i in range(min(len(sent.text), seq_len)):
+        # Check if the word is in the word_to_vec mapping
+        if sent.text[i] in word_to_vec:
+            # Add the word embedding to the running total
+            seq_vector[i] = word_to_vec[sent.text[i]]
 
+    # Return the average word vector
     return seq_vector
 
 
@@ -358,13 +355,19 @@ class LSTM(nn.Module):
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, dropout=dropout,
+                            bidirectional=True, device=get_available_device(), batch_first=True, dtype=torch.float64)
+        self.linear = nn.Linear(in_features=hidden_dim * 2, out_features=1, bias=True, dtype=torch.float64)
         return
 
     def forward(self, text):
-        return
+        lstm_output, (hn, cn) = self.lstm(text)
+        # res = self.linear(lstm_output[:, -1, :])
+        res = self.linear(torch.hstack([hn[0], hn[1]]))
+        return res.squeeze()
 
     def predict(self, text):
-        return
+        return torch.round(nn.Sigmoid()(self.forward(text)))
 
 
 class LogLinear(nn.Module):
@@ -374,7 +377,8 @@ class LogLinear(nn.Module):
 
     def __init__(self, embedding_dim):
         super(LogLinear, self).__init__()
-        self.linearLayer = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True)
+        self.linearLayer = nn.Linear(in_features=embedding_dim, out_features=1, dtype=torch.float64, bias=True,
+                                     device=get_available_device())
 
     def forward(self, x):
         return self.linearLayer(x).squeeze()
@@ -420,6 +424,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
     for x, y in data_iterator:
         optimizer.zero_grad()
+        x = x.to(get_available_device())
         y_pred = model(x)
         running_loss = criterion(y_pred, y)
         loss += running_loss.item()
@@ -446,6 +451,7 @@ def evaluate(model, data_iterator, criterion):
     acc, loss, sample_counters = 0, 0, 0
 
     for x, y in data_iterator:
+        x = x.to(get_available_device())
         y_pred = model(x)
         running_loss = criterion(y_pred, y)
         loss += running_loss.item()
@@ -540,13 +546,13 @@ def train_lstm_with_w2v():
     Here comes your code for training and evaluation of the LSTM model.
     """
     data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
-    lstm_w2v = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=5, n_layers=5, dropout=0.5)
+    lstm_w2v = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=HIDDEN_LSTM_DIM, n_layers=LSTM_LAYERS, dropout=DROP_OUT)
     train_model(lstm_w2v, data_manager, n_epochs=4, lr=0.001, weight_decay=0.0001)
     return lstm_w2v, data_manager  # todo add this line change to readme
 
 
 # TODO add this function to the README
-def answer(train_model_function, title, lr=0.01, weight_decay=0.001, n_epochs=20):
+def answer(train_model_function, title, lr, weight_decay, n_epochs):
     print("start training", title)
     model, data = train_model_function()
     plot(f"{title} Train & Validation Losses", ["Epoch number", "Loss"],
@@ -571,5 +577,6 @@ def answer(train_model_function, title, lr=0.01, weight_decay=0.001, n_epochs=20
 
 
 if __name__ == '__main__':
-    # answer(train_log_linear_with_one_hot, "LogLinear one hot")
-    answer(train_log_linear_with_w2v, "LogLinear w2v")
+    answer(train_log_linear_with_one_hot, "LogLinear one hot", lr=0.01, weight_decay=0.001, n_epochs=20)
+    answer(train_log_linear_with_w2v, "LogLinear w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
+    answer(train_lstm_with_w2v, "LSTM w2v", lr=0.001, weight_decay=0.0001, n_epochs=4)

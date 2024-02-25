@@ -225,7 +225,24 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
+    seq_vector = np.zeros((seq_len, embedding_dim))
+
+    # Count the number of words in the sentence
+    count = 0
+
+    # Iterate over each word in the sentence
+    for word in sent.text:
+        # Check if the word is in the word_to_vec dictionary
+        if word in word_to_vec:
+            # Add the word's vector to avg_vector
+            # vec = word_to_vec[word.text[0]]
+            seq_vector += word_to_vec[word]
+            count += 1
+    # If count is not 0, divide avg_vector by count to get the average
+    if count != 0:
+        seq_vector /= count
+
+    return seq_vector
 
 
 # todo: we made this function add to README
@@ -350,7 +367,7 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout, *args, **kwargs):
-        # super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         return
 
     def forward(self, text):
@@ -523,7 +540,7 @@ def train_log_linear_with_w2v():
     """
     data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
     # model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    log_linear_w2v = LogLinear(data_manager.get_input_shape()[0])
+    log_linear_w2v = LogLinear(embedding_dim=W2V_EMBEDDING_DIM)
     train_model(log_linear_w2v, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
     return log_linear_w2v, data_manager  # todo add this line change to readme
 
@@ -532,7 +549,10 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
+    lstm_w2v = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=5, n_layers=5, dropout=0.5)
+    train_model(lstm_w2v, data_manager, n_epochs=4, lr=0.001, weight_decay=0.0001)
+    return lstm_w2v, data_manager  # todo add this line change to readme
 
 
 # TODO add this function to the README
@@ -561,5 +581,5 @@ def answer(train_model_function, title, lr=0.01, weight_decay=0.001, n_epochs=20
 
 
 if __name__ == '__main__':
-    answer(train_log_linear_with_one_hot, "LogLinear one hot")
+    # answer(train_log_linear_with_one_hot, "LogLinear one hot")
     answer(train_log_linear_with_w2v, "LogLinear w2v")

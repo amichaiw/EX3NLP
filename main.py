@@ -2,12 +2,6 @@ import torch
 import numpy as np
 import exercise_blanks as exercise
 
-x = np.zeros(5)
-y = np.zeros(5)
-y[0] = 1
-x += y
-print(x)
-
 # x = torch.rand(5, 3)
 # print(x)
 # x1 = torch.reshape(x, (-1,))

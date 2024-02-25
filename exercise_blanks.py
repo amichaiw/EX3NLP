@@ -433,19 +433,15 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         raise Exception("Data iterator is empty!")
 
     model.requires_grad_(True)
-    acc, loss, sample_counters = 0, 0, 0
 
     for x, y in data_iterator:
         optimizer.zero_grad()
         y_pred = model(x.to(get_available_device()))
-        running_loss = criterion(y_pred, y)
-        loss += running_loss.item()
-        acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
-        running_loss.backward()
+        loss = criterion(y_pred, y)
+        loss.backward()
         optimizer.step()
-        sample_counters += len(y)
-    # todo recalculate the accuracy/loss
-    return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
+
+    return evaluate(model, data_iterator, criterion)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -464,11 +460,10 @@ def evaluate(model, data_iterator, criterion):
 
     for x, y in data_iterator:
         y_pred = model(x.to(get_available_device()))
-        running_loss = criterion(y_pred, y)
-        loss += running_loss.item()
-        acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
+        loss += criterion(y_pred, y).item()
         sample_counters += len(y)
-    # todo recalculate the accuracy/loss
+        acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
+
     return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
 
 
@@ -515,7 +510,6 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     for epoch in range(n_epochs):
         train_loss, train_acc = train_epoch(model, train_data_iterator, optimizer, criterion)
         val_loss, val_acc = evaluate(model, val_data_iterator, criterion)
-
         TRAIN_LOSSES.append(train_loss)
         TRAIN_ACCURACIES.append(train_acc)
         VAL_LOSSES.append(val_loss)

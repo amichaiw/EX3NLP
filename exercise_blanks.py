@@ -362,7 +362,6 @@ class LSTM(nn.Module):
 
     def forward(self, text):
         lstm_output, (hn, cn) = self.lstm(text)
-        # res = self.linear(lstm_output[:, -1, :])
         res = self.linear(torch.hstack([hn[0], hn[1]]))
         return res.squeeze()
 

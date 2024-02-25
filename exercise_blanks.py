@@ -431,7 +431,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         running_loss.backward()
         optimizer.step()
         sample_counters += len(y)
-
+    # todo recalculate the accuracy/loss
     return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
 
 
@@ -456,7 +456,7 @@ def evaluate(model, data_iterator, criterion):
         loss += running_loss.item()
         acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
         sample_counters += len(y)
-
+    # todo recalculate the accuracy/loss
     return np.round(loss / sample_counters, 5), np.round(100 * acc / sample_counters, 5)
 
 

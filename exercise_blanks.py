@@ -234,15 +234,31 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     return seq_vector
 
 
-# todo: we made this function add to README
-def get_special_test_data(test):
+# todo add this function to the README
+def get_rare_words_sentences(sentences, dataset):
     """
-    this method gets a test iterator of sentences, and returns a list of sentences which are
-    considered special test data.
-    :param test: a list of sentences
-    :return: a list of sentences which are considered special test data
+    :param sentences: list of sentences from the test set
+    :param dataset: the SentimentTreeBank object
+    :return: list of all the sentences indices which are considered as rare words sentences
     """
-    return
+    rare_words_indices = data_loader.get_rare_words_examples(sentences, dataset)
+    rare_words_sentences = []
+    for i in rare_words_indices:
+        rare_words_sentences.append(sentences[i])
+    return rare_words_sentences
+
+
+# todo add this function to the README
+def get_negated_polarity_sentences(sentences):
+    """
+    :param sentences: list of sentences from the test set
+    :return: list of all the sentences indices which are considered as negated polarity sentences
+    """
+    negated_polarity_indices = data_loader.get_negated_polarity_examples(sentences)
+    negated_polarity_sentences = []
+    for i in negated_polarity_indices:
+        negated_polarity_sentences.append(sentences[i])
+    return negated_polarity_sentences
 
 
 class OnlineDataset(Dataset):
@@ -427,8 +443,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
     for x, y in data_iterator:
         optimizer.zero_grad()
-        x = x.to(get_available_device())
-        y_pred = model(x)
+        y_pred = model(x.to(get_available_device()))
         running_loss = criterion(y_pred, y)
         loss += running_loss.item()
         acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
@@ -454,8 +469,7 @@ def evaluate(model, data_iterator, criterion):
     acc, loss, sample_counters = 0, 0, 0
 
     for x, y in data_iterator:
-        x = x.to(get_available_device())
-        y_pred = model(x)
+        y_pred = model(x.to(get_available_device()))
         running_loss = criterion(y_pred, y)
         loss += running_loss.item()
         acc += ((torch.round(nn.Sigmoid()(y_pred)) == y).sum()).item()
@@ -495,8 +509,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     """
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = nn.BCEWithLogitsLoss(reduction='sum')
-    criterion.to(device=get_available_device())
+    criterion = nn.BCEWithLogitsLoss(reduction='sum').to(device=get_available_device())
     train_data_iterator = data_manager.get_torch_iterator(TRAIN)
     val_data_iterator = data_manager.get_torch_iterator(VAL)
 
@@ -513,11 +526,6 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         TRAIN_ACCURACIES.append(train_acc)
         VAL_LOSSES.append(val_loss)
         VAL_ACCURACIES.append(val_acc)
-
-        print(f'Epoch: {epoch + 1:02}')
-        print(f'\tTrain Loss: {train_loss} | Train Acc: {train_acc}%')
-        print(f'\t Val. Loss: {val_loss} |  Val. Acc: {val_acc}%')
-        print('-----------------------------')
     return
 
 
@@ -553,33 +561,6 @@ def train_lstm_with_w2v():
     return lstm_w2v, data_manager  # todo add this line change to readme
 
 
-# todo add this function to the README
-def get_rare_words_sentences(sentences, dataset):
-    """
-    :param sentences: list of sentences from the test set
-    :param dataset: the SentimentTreeBank object
-    :return: list of all the sentences indices which are considered as rare words sentences
-    """
-    rare_words_indices = data_loader.get_rare_words_examples(sentences, dataset)
-    rare_words_sentences = []
-    for i in rare_words_indices:
-        rare_words_sentences.append(sentences[i])
-    return rare_words_sentences
-
-
-# todo add this function to the README
-def get_negated_polarity_sentences(sentences):
-    """
-    :param sentences: list of sentences from the test set
-    :return: list of all the sentences indices which are considered as negated polarity sentences
-    """
-    negated_polarity_indices = data_loader.get_negated_polarity_examples(sentences)
-    negated_polarity_sentences = []
-    for i in negated_polarity_indices:
-        negated_polarity_sentences.append(sentences[i])
-    return negated_polarity_sentences
-
-
 # TODO add this function to the README
 def answer(train_model_function, title, lr, weight_decay, n_epochs):
     print("start training", title)
@@ -589,29 +570,34 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
          [TRAIN_LOSSES, VAL_LOSSES], ["Train", "Validation"])
     plot(f"{title} Train & Validation Accuracies", ["Epoch number", "Accuracy"],
          [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
-    test_loss, test_acc = evaluate(model, data.get_torch_iterator(TEST),
-                                   nn.BCEWithLogitsLoss(reduction='sum'))
+
+    # test
+    test_loss, test_acc = evaluate(model, data.get_torch_iterator(TEST), nn.BCEWithLogitsLoss(reduction='sum'))
     print(f"{title} Test Evaluation:")
-    print(f'Test Loss: {test_loss} | Test Acc: {test_acc}%')
+    print(f"Test Loss: {test_loss} | Test Acc: {test_acc}%\n")
 
-    negated_polarity_test_loss, negated_polarity_test_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
-                                                                     nn.BCEWithLogitsLoss(reduction='sum'))
-    print(f"{title} Polarity Evaluation:")
-    print(f'Polarity Loss: {negated_polarity_test_loss} | Polarity Acc: {negated_polarity_test_acc}%')
+    # Negated Polarity
+    negated_polarity_loss, negated_polarity_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
+                                                           nn.BCEWithLogitsLoss(reduction='sum'))
+    negated_polarity_res = (f"{title} Negated Polarity Evaluation:\n"
+                            f" Negated Polarity Loss: {negated_polarity_loss} | "
+                            f"Negated Polarity Acc: {negated_polarity_acc}%\n")
+    print(negated_polarity_res)
 
-    rare_test_loss, rare_test_acc = evaluate(model, data.get_torch_iterator(RARE),
-                                             nn.BCEWithLogitsLoss(reduction='sum'))
-    print(f"{title} Rare Words Evaluation:")
-    print(f'Rare Loss: {rare_test_loss} | Rare Acc: {rare_test_acc}%')
+    # Rare Words
+    rare_loss, rare_acc = evaluate(model, data.get_torch_iterator(RARE), nn.BCEWithLogitsLoss(reduction='sum'))
+    rare_res = f"{title} Rare Words Evaluation:\n Rare Loss: {rare_loss} | Rare Acc: {rare_acc}%\n"
+    print(rare_res)
+
+    append_to_file("results.txt", "Latest results:\n" + rare_res + negated_polarity_res + "\n")
 
     save_model(model, f"{title}_model", n_epochs,
-               optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay))
-    print(f"{title} model saved")
-    print("**********************\n")
+               optim.Adam(params=model.parameters(), lr=lr, weight_decay=weight_decay))
+    print(f"{title} model saved as {title}_model")
+    print("**********************\n\n")
 
 
 if __name__ == '__main__':
-    # download_and_save_model()
     answer(train_log_linear_with_one_hot, "LogLinear one hot", lr=0.01, weight_decay=0.001, n_epochs=20)
     answer(train_log_linear_with_w2v, "LogLinear w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
     answer(train_lstm_with_w2v, "LSTM w2v", lr=0.001, weight_decay=0.0001, n_epochs=4)

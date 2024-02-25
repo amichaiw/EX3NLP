@@ -408,7 +408,7 @@ class LogLinear(nn.Module):
 
 # ------------------------- training functions -------------
 
-
+# todo add to README that not used
 def binary_accuracy(preds, y):
     """
     This method returns tha accuracy of the predictions, relative to the labels.
@@ -417,13 +417,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    # Round predictions to the closest integer (0 or 1)
-    rounded_preds = torch.round(nn.Sigmoid()(preds))
-    # Calculate the number of correct predictions
-    correct = (rounded_preds == y).float()
-    # Calculate the accuracy
-    accuracy = correct.sum() / len(correct)
-    return accuracy
+    return (preds == y).sum() / len(y)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):

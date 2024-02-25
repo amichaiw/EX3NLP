@@ -153,26 +153,16 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     """
     # Initialize an empty numpy array with zeros
     avg_vector = np.zeros(embedding_dim)
-
-    # Count the number of words in the sentence
-    count = 0
-    leaves = sent.get_leaves()
-
     # Iterate over each word in the sentence
     for word in sent.text:
         # Check if the word is in the word_to_vec dictionary
         if word in word_to_vec:
-            # Add the word's vector to avg_vector
-            # vec = word_to_vec[word.text[0]]
+            # Add the word embedding to the running total
             avg_vector += word_to_vec[word]
-            # vec2 = avg_vector
-            # Increment the count
-            count += 1
-    # If count is not 0, divide avg_vector by count to get the average
-    if count != 0:
-        avg_vector /= count
-        # avg_vector /= len(sent.text)
-
+    # Divide the total by the number of words in the sentence
+    if len(sent.text) != 0:
+        avg_vector /= len(sent.text)
+    # Return the average word vector
     return avg_vector
 
 

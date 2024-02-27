@@ -13,12 +13,13 @@ import tqdm
 import plotly.express as px
 import plotly.io as pio
 import kaleido
+from datetime import datetime
 
 # ------------------------------------------- Constants ----------------------------------------
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
-HIDDEN_LSTM_DIM = 100  # todo add this line to the README
+HIDDEN_LSTM_DIM = 100
 DROP_OUT = 0.5
 LSTM_LAYERS = 1
 
@@ -32,7 +33,6 @@ TEST = "test"
 RARE = "rare"
 NEGATED_POLARITY = "negated_polarity"
 
-# todo: we made this lines so add to README§
 TRAIN_LOSSES, TRAIN_ACCURACIES = [], []
 VAL_LOSSES, VAL_ACCURACIES = [], []
 
@@ -86,13 +86,11 @@ def load(model, path, optimizer):
     return model, optimizer, epoch
 
 
-# todo: we made this function add to README
 def plot(graph_title, axis_names, curves, curves_titles):
-    fig = px.line(x=list(range(1, len(curves[0]) + 1)), y=curves,
-                  title=graph_title, )
-
+    xaxis_len_range = range(1, len(curves[0]) + 1)
+    fig = px.line(x=xaxis_len_range, y=curves, title=graph_title)
     fig.update_layout(xaxis_title=axis_names[0], yaxis_title=axis_names[1],
-                      xaxis=dict(tickvals=list(range(1, len(curves[0]) + 1)), tickmode='array'))
+                      xaxis=dict(tickvals=list(xaxis_len_range), tickmode='array'))
 
     for i, title in enumerate(curves_titles):
         fig.update_traces(name=title, selector=dict(name=f'wide_variable_{i}'))
@@ -101,7 +99,6 @@ def plot(graph_title, axis_names, curves, curves_titles):
     fig.show()
 
 
-# todo add this function to the README
 def append_to_file(filename, text):
     """
     Appends the given text to the bottom of the specified file.
@@ -234,7 +231,6 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     return seq_vector
 
 
-# todo add this function to the README
 def get_rare_words_sentences(sentences, dataset):
     """
     :param sentences: list of sentences from the test set
@@ -248,7 +244,6 @@ def get_rare_words_sentences(sentences, dataset):
     return rare_words_sentences
 
 
-# todo add this function to the README
 def get_negated_polarity_sentences(sentences):
     """
     :param sentences: list of sentences from the test set
@@ -347,14 +342,14 @@ class DataManager():
     def get_torch_iterator(self, data_subset=TRAIN):
         """
         :param data_subset: one of TRAIN VAL and TEST
-        :return: torch batches iterator for this part of the datset
+        :return: torch batches iterator for this part of the dataset
         """
         return self.torch_iterators[data_subset]
 
     def get_labels(self, data_subset=TRAIN):
         """
         :param data_subset: one of TRAIN VAL and TEST
-        :return: numpy array with the labels of the requested part of the datset in the same order of the
+        :return: numpy array with the labels of the requested part of the dataset in the same order of the
         examples.
         """
         return np.array([sent.sentiment_class for sent in self.sentences[data_subset]])
@@ -408,7 +403,6 @@ class LogLinear(nn.Module):
 
 # ------------------------- training functions -------------
 
-# todo add to README that not used
 def binary_accuracy(preds, y):
     """
     This method returns tha accuracy of the predictions, relative to the labels.
@@ -522,9 +516,9 @@ def train_log_linear_with_one_hot():
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
     data_manager = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64, use_sub_phrases=True)
-    log_linear = LogLinear(data_manager.get_input_shape()[0])
+    log_linear = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
     train_model(log_linear, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
-    return log_linear, data_manager  # todo add this api changes to the readme
+    return log_linear, data_manager
 
 
 def train_log_linear_with_w2v():
@@ -533,10 +527,9 @@ def train_log_linear_with_w2v():
     representation.
     """
     data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
-    # model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    log_linear_w2v = LogLinear(embedding_dim=W2V_EMBEDDING_DIM)
+    log_linear_w2v = LogLinear(embedding_dim=W2V_EMBEDDING_DIM).to(get_available_device())
     train_model(log_linear_w2v, data_manager, n_epochs=20, lr=0.01, weight_decay=0.001)
-    return log_linear_w2v, data_manager  # todo add this line change to readme
+    return log_linear_w2v, data_manager
 
 
 def train_lstm_with_w2v():
@@ -545,13 +538,14 @@ def train_lstm_with_w2v():
     """
     data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
     lstm_w2v = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=HIDDEN_LSTM_DIM, n_layers=LSTM_LAYERS, dropout=DROP_OUT)
+    lstm_w2v = lstm_w2v.to(get_available_device())
     train_model(lstm_w2v, data_manager, n_epochs=4, lr=0.001, weight_decay=0.0001)
-    return lstm_w2v, data_manager  # todo add this line change to readme
+    return lstm_w2v, data_manager
 
 
-# TODO add this function to the README
 def answer(train_model_function, title, lr, weight_decay, n_epochs):
-    print("start training", title)
+    print("********** start training", title, "**********")
+    append_to_file("results.txt", f"\n*** {title} ***")
     model, data = train_model_function()
 
     plot(f"{title} Train & Validation Losses", ["Epoch number", "Loss"],
@@ -559,33 +553,34 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
     plot(f"{title} Train & Validation Accuracies", ["Epoch number", "Accuracy"],
          [TRAIN_ACCURACIES, VAL_ACCURACIES], ["Train", "Validation"])
 
-    # test
-    test_loss, test_acc = evaluate(model, data.get_torch_iterator(TEST), nn.BCEWithLogitsLoss(reduction='sum'))
-    print(f"{title} Test Evaluation:")
-    print(f"Test Loss: {test_loss} | Test Acc: {test_acc}%\n")
+    train_res = f"Train Loss: {TRAIN_LOSSES[-1]} | Train Acc: {TRAIN_ACCURACIES[-1]}%"
+    val_res = f"Validation Loss: {VAL_LOSSES[-1]} | Validation Acc: {VAL_ACCURACIES[-1]}%"
+    append_to_file("results.txt", train_res)
+    append_to_file("results.txt", val_res)
 
-    # Negated Polarity
-    negated_polarity_loss, negated_polarity_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
-                                                           nn.BCEWithLogitsLoss(reduction='sum'))
-    negated_polarity_res = (f"{title} Negated Polarity Evaluation:\n"
-                            f" Negated Polarity Loss: {negated_polarity_loss} | "
-                            f"Negated Polarity Acc: {negated_polarity_acc}%\n")
+    test_loss, test_acc = evaluate(model, data.get_torch_iterator(TEST), nn.BCEWithLogitsLoss(reduction='sum'))
+    test_res = f"Test Loss: {test_loss} | Test Acc: {test_acc}%"
+    print(test_res)
+
+    neg_polar_loss, neg_polar_acc = evaluate(model, data.get_torch_iterator(NEGATED_POLARITY),
+                                             nn.BCEWithLogitsLoss(reduction='sum'))
+    negated_polarity_res = f"Negated Polarity Loss: {neg_polar_loss} | Negated Polarity Acc: {neg_polar_acc}%"
+    append_to_file("results.txt", negated_polarity_res)
     print(negated_polarity_res)
 
-    # Rare Words
     rare_loss, rare_acc = evaluate(model, data.get_torch_iterator(RARE), nn.BCEWithLogitsLoss(reduction='sum'))
-    rare_res = f"{title} Rare Words Evaluation:\n Rare Loss: {rare_loss} | Rare Acc: {rare_acc}%\n"
+    rare_res = f"Rare Loss: {rare_loss} | Rare Acc: {rare_acc}%"
+    append_to_file("results.txt", rare_res)
     print(rare_res)
 
-    append_to_file("results.txt", "Latest results:\n" + rare_res + negated_polarity_res + "\n")
-
-    save_model(model, f"{title}_model", n_epochs,
-               optim.Adam(params=model.parameters(), lr=lr, weight_decay=weight_decay))
+    save_pickle(model, f"{title}_model.pkl")
     print(f"{title} model saved as {title}_model")
     print("**********************\n\n")
 
 
 if __name__ == '__main__':
-    answer(train_log_linear_with_one_hot, "LogLinear one hot", lr=0.01, weight_decay=0.001, n_epochs=20)
-    answer(train_log_linear_with_w2v, "LogLinear w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
+    append_to_file("results.txt", f"########### Start Time: {datetime.now()} ###########")
+    answer(train_log_linear_with_one_hot, "LogLinear_one_hot", lr=0.01, weight_decay=0.001, n_epochs=20)
+    answer(train_log_linear_with_w2v, "LogLinear_w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
     answer(train_lstm_with_w2v, "LSTM w2v", lr=0.001, weight_decay=0.0001, n_epochs=4)
+    append_to_file("results.txt", "************* End *************\n\n")

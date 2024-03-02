@@ -373,10 +373,13 @@ class LSTM(nn.Module):
         self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, dropout=dropout,
                             bidirectional=True, device=get_available_device(), batch_first=True, dtype=torch.float64)
         self.linear = nn.Linear(in_features=hidden_dim * 2, out_features=1, bias=True, dtype=torch.float64)
+        self.dropout = nn.Dropout(dropout)
         return
 
     def forward(self, text):
         lstm_output, (hn, cn) = self.lstm(text)
+        hn[0] = self.dropout(hn[0])
+        hn[1] = self.dropout(hn[1])
         res = self.linear(torch.hstack([hn[0], hn[1]]))
         return res.squeeze()
 
@@ -470,6 +473,9 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
+    if len(data_iter) == 0:
+        raise Exception("Data iterator is empty!")
+
     model.requires_grad_(False)
     predictions = torch.Tensor()
 
@@ -580,7 +586,7 @@ def answer(train_model_function, title, lr, weight_decay, n_epochs):
 
 if __name__ == '__main__':
     append_to_file("results.txt", f"########### Start Time: {datetime.now()} ###########")
-    answer(train_log_linear_with_one_hot, "LogLinear_one_hot", lr=0.01, weight_decay=0.001, n_epochs=20)
-    answer(train_log_linear_with_w2v, "LogLinear_w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
+    # answer(train_log_linear_with_one_hot, "LogLinear_one_hot", lr=0.01, weight_decay=0.001, n_epochs=20)
+    # answer(train_log_linear_with_w2v, "LogLinear_w2v", lr=0.01, weight_decay=0.001, n_epochs=20)
     answer(train_lstm_with_w2v, "LSTM w2v", lr=0.001, weight_decay=0.0001, n_epochs=4)
     append_to_file("results.txt", "************* End *************\n\n")

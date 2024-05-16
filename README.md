@@ -1,11 +1,9 @@
-API changes:
+Sentiment Analysis with Stanford Sentiment Treebank: A Comparative Study of LSTM, Log-Linear, and Word2Vec Models
 
-1. DataManager.get_torch_iterator() get as argument [TRAIN, TEST, VAL, RARE, NEGATED_POLARITY] And not only train/val/test. Its seem like the natural place to get those subsets
-2. binary_accuracy() is not used - we did another implementation to compute loss/acc. Since could be situation that last batch size nto equal the rest of the batches.
-3. train_log_linear_with_one_hot(), train_log_linear_with_w2v() and train_lstm_with_w2v() returns tuple of the trained model and the dataManager such that we could save and run the model on another scenarios (test set and the special sets) more easily - and use less code by using one function named answer() to get the trained models and answer the questions
+Utilized the Stanford Sentiment Treebank text to train three models: LSTM, Log-Linear with one-hot word embeddings and Log-Linear with word2vec embeddings. 
+The goal was to predict whether the text is negative or positive, Sentiment Analysis.
 
-
-
-
-
-
+Models were compared across three scenarios:
+1. Regular texts
+2. Texts with polarity (positive phrases containing negative sub-phrases)
+3. Texts with rare words
